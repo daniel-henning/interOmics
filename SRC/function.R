@@ -56,17 +56,17 @@ rawdat <- read.table('mRNA.fpkm.sorted.txt',header = T,row.names = 1,check.names
 #<<===============================================================================
 ###################################clustering method##############################
 #===============================================================================>>
-########
-#1st####
+
+##################################################################################
+##########################################1st#####################################
 #期望最大化聚类(Expectation Maximization Algorithm)
 library(mclust)
 mc <- Mclust(as.matrix(tpm.trimmed), G=1:20)
 m.best <- dim(mc$z)[2]
 cat("model-based optimal number of clusters:", m.best, "\n")
-
 plot(d_clust)
-########
-#2nd####
+###################################################################################
+##########################################2nd######################################
 #k-means (k-均值聚类)
 library(stats)
 kmeans.result<-kmeans(tpm.trimmed,4)
@@ -75,8 +75,14 @@ table(group_info,kmeans.result$cluster)
 plot(iris[,-5],col=kmeans.result$cluster)
 # plot cluster centers
 points(kmeans.result$centers[,c("Sepal.Length","Sepal.Width")],col=1:3,pch=8,cex=2)
-########
-#3rd####
+#define a function to see the results with different k-means
+wss <- (nrow(tpm.trimmed)-1)*sum(apply(tpm.trimmed,2,var))
+for(i in 2:30){wss[i] <- sum(kmeans(tpm.trimmed,centers=i)$withinss)}
+###这里的wss(within-cluster sum of squares)是组内平方和
+plot(1:20, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of squares")
+
+####################################################################################
+##########################################3rd#######################################
 #K-Medoids (k-中心点聚类)
 library(fpc)
 pamk.result <- pamk(tpm.trimmed)
@@ -88,14 +94,9 @@ pam.result <- pam(tpm.trimmed,3)
 table(pam.result$clustering)
 plot(pam.result)
 
-#define a function to see the results with different k-means
-wss <- (nrow(tpm.trimmed)-1)*sum(apply(tpm.trimmed,2,var))
-for(i in 2:30){wss[i] <- sum(kmeans(tpm.trimmed,centers=i)$withinss)}
-###这里的wss(within-cluster sum of squares)是组内平方和
-plot(1:20, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of squares")
 
-########
-#4th####
+###################################################################################
+#########################################4th#######################################
 #DBSCAN (密度聚类)
 library(cluster)#做聚类的包  
 library(fpc)#有dbscan  
@@ -109,8 +110,8 @@ str(ds)#可以看列数
 par(bg="grey")  
 plot(ds, tpm.trimmed)
 
-########
-#5th####
+###################################################################################
+########################################5th########################################
 #h-clust (层次聚类)
 #d为待处理数据集样本间的距离矩阵,可用dist()函数计算得到;
 #method参数用于选择聚类的具体算法,可供选择的有ward,single及complete等7种,默认选择complete方法;
@@ -126,4 +127,54 @@ rect.hclust(hh,k=5)
 
 
 
+#<<===============================================================================
+##############################Dimension Reduction method##########################
+#===============================================================================>>
+##
 
+
+
+
+#########################################
+###############2nd: t-SNE################
+# load the tsne package
+library(tsne)
+
+# initialize counter to 0
+x <- 0
+epc <- function(x) {
+  x <<- x + 1
+  filename <- paste(".//plot//", x, "jpg", sep=".")
+  cat("> Plotting TSNE to ", filename, " ")
+  
+  # plot to d:\\plot.x.jpg file of 2400x1800 dimension
+  jpeg(filename, width=2400, height=1800)
+  
+  plot(x, t='n', main="T-SNE")
+  text(x, labels=rownames(tpm.trimmed))
+  dev.off()
+}
+# run tsne (maximum iterations:500, callback every 100 epochs, target dimension k=5)
+tsne_data <- tsne(tpm.trimmed, k=4, epoch_callback=epc, max_iter=500, epoch=100)
+##################################
+# load the Rtsne package
+library(Rtsne)
+# run Rtsne with default parameters
+rtsne_out <- Rtsne(as.matrix(mydata))
+# plot the output of Rtsne into d:\\barneshutplot.jpg file of 2400x1800 dimension
+jpeg("d:\\barneshutplot.jpg", width=2400, height=1800)
+plot(rtsne_out$Y, t='n', main="BarnesHutSNE")
+text(rtsne_out$Y, labels=rownames(mydata))
+##################################
+# mydata is the matrix loaded into R previously. Run the following command if it isn't yet loaded into R. 
+mydata <- read.table("d:\\samplewordembedding.csv", header=TRUE, sep=",")
+# K-Means Clustering with 20 clusters
+fit <- kmeans(mydata, 20)
+# Cluster Plot against 1st 2 principal components
+library(cluster)
+clusplot(mydata, fit$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+
+
+
+
+#############################
