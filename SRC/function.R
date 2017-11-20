@@ -50,8 +50,7 @@ table(group_info,kmeans.result$cluster)
 
 plot(iris2[c language="("][/c],col=kmeans.result$cluster)
 # plot cluster centers
-points(kmeans.result$centers[,c(“Sepal.Length”,”Sepal.Width”)],col=1:3,pch=8,cex=2)
-
+points(kmeans.result$centers[,c(“Sepal.Length”,”Sepal.Width“)],col=1:3,pch=8,cex=2)
 ########
 #3rd####
 #K-Medoids (k-中心点聚类)
@@ -107,6 +106,7 @@ rawdat <- read.table('mRNA.fpkm.sorted.txt',header = T,row.names = 1,check.names
 library(fpc)
 pamk.result <- pamk(tpm)
 pamk.result$nc
+
 
 
 
