@@ -1,4 +1,10 @@
-#Define a zero-center function to preprocess mRNA,miRNA,methylation data et al.
+library("Biobase")
+library("genefilter")
+data(sample.ExpressionSet)
+varLabels(sample.ExpressionSet)
+###################################################
+### Define a zero-center function to preprocess mRNA,miRNA,methylation data et al.
+###################################################
 zero.cent <- function(data_input){
   if(dim(data_input)[1]>dim(data_input)[2]){
     #Because mRNA and methylation data have a p>n feature,
@@ -9,8 +15,10 @@ zero.cent <- function(data_input){
   }
   return(data.new)
 }
+###################################################
+### Define a function to transfer fpkm to tpm
+###################################################
 
-#Define a function to transfer fpkm to tpm
 fpkm2tpm <- function(rawdat){
   if(dim(data_input)[1]<dim(data_input)[2]){
     dat <- apply(rawdat,1,function(x)x/sum(x))*1000000
@@ -20,8 +28,9 @@ fpkm2tpm <- function(rawdat){
   return(dat)
 }
 
-#Define a fuction to trimming expression data with number of fpkm > 1,
-#the default number was set as n>6 with 470 samples.
+###################################################
+### Define a fuction to trimming expression data with number of fpkm > 1.
+###################################################
 trimming <- function(rawdat,n){
   for(i in 1:nrow(rawdat)){
     if(length(rawdat[i,][rawdat[i,]>1]) <= n){
@@ -32,9 +41,9 @@ trimming <- function(rawdat,n){
   return(t(new.dat))
 }
 
-
-#define a function to caculate coefficient of variation
-##################################
+###################################################
+### define a function to caculate coefficient of variation
+###################################################
 c.v <- function(data){
   c.v  <- apply(data,2,function(x)sd(x)/mean(x))
   mean <- apply(data,2,function(x)mean(x))
@@ -45,6 +54,21 @@ c.v <- function(data){
 #get top 20% most-variable genes.
 tpm.top <- sort(tpm.cv$c.v,decreasing = T)[1:floor(length(tpm.cv$c.v)*0.2)]
 mRNA.top <- tpm.trimmed[,names(tpm.top)]
+#get top 20% most-variable genes.
+tpm.top <- sort(tpm.cv$c.v,decreasing = T)[1:floor(length(tpm.cv$c.v)*0.2)]
+
+
+
+
+
+
+#gene_filter
+gene.ft <- function(data){
+  f1 <- kOverA(5, 1)
+  ffun <- filterfun(f1)
+  wh1 <- genefilter(exprs(sample.ExpressionSet), ffun)
+  sum(wh1)
+}
 ######################
 setwd("C:\\Users\\Ning\\Desktop\\melanoma_data/")
 rawdat <- read.table('mRNA.fpkm.sorted.txt',header = T,row.names = 1,check.names = F,sep = ',')
@@ -58,17 +82,19 @@ rawdat <- read.table('mRNA.fpkm.sorted.txt',header = T,row.names = 1,check.names
 ###################################clustering method##############################
 #===============================================================================>>
 
-##################################################################################
-##########################################1st#####################################
-#期望最大化聚类(Expectation Maximization Algorithm)
+###################################################
+### 期望最大化聚类(Expectation Maximization Algorithm)
+###################################################
 library(mclust)
 mc <- Mclust(as.matrix(tpm.trimmed), G=1:20)
 m.best <- dim(mc$z)[2]
 cat("model-based optimal number of clusters:", m.best, "\n")
 plot(d_clust)
-###################################################################################
-##########################################2nd######################################
-#k-means (k-均值聚类)
+
+
+###################################################
+### k-means (k-均值聚类)
+###################################################
 library(stats)
 kmeans.result<-kmeans(tpm.trimmed,4)
 table(group_info,kmeans.result$cluster)
@@ -82,9 +108,10 @@ for(i in 2:30){wss[i] <- sum(kmeans(tpm.trimmed,centers=i)$withinss)}
 ###这里的wss(within-cluster sum of squares)是组内平方和
 plot(1:20, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of squares")
 
-####################################################################################
-##########################################3rd#######################################
-#K-Medoids (k-中心点聚类)
+
+###################################################
+### K-Medoids (k-中心点聚类)
+###################################################
 library(fpc)
 pamk.result <- pamk(tpm.trimmed)
 pamk.result$nc
@@ -96,9 +123,10 @@ table(pam.result$clustering)
 plot(pam.result)
 
 
-###################################################################################
-#########################################4th#######################################
-#DBSCAN (密度聚类)
+
+###################################################
+### DBSCAN (密度聚类)
+###################################################
 library(cluster)#做聚类的包  
 library(fpc)#有dbscan  
 #city <- read.csv("中国城市坐标.csv")  
@@ -111,9 +139,10 @@ str(ds)#可以看列数
 par(bg="grey")  
 plot(ds, tpm.trimmed)
 
-###################################################################################
-########################################5th########################################
-#h-clust (层次聚类)
+
+###################################################
+### h-clust (层次聚类)
+###################################################
 #d为待处理数据集样本间的距离矩阵,可用dist()函数计算得到;
 #method参数用于选择聚类的具体算法,可供选择的有ward,single及complete等7种,默认选择complete方法;
 #参数members用于指出每个待聚类样本点/簇是由几个单样本构成,
@@ -131,13 +160,19 @@ rect.hclust(hh,k=5)
 #<<===============================================================================
 ##############################Dimension Reduction method##########################
 #===============================================================================>>
-##
+
+
+###################################################
+### 
+###################################################
 
 
 
 
-#########################################
-###############2nd: t-SNE################
+
+###################################################
+### 2nd: t-SN
+###################################################
 # load the tsne package
 library(tsne)
 
