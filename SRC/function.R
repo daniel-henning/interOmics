@@ -45,6 +45,9 @@ c.v <- function(data){
 #get top 20% most-variable genes.
 tpm.top <- sort(tpm.cv$c.v,decreasing = T)[1:floor(length(tpm.cv$c.v)*0.2)]
 mRNA.top <- tpm.trimmed[,names(tpm.top)]
+#get top 20% most-variable genes.
+tpm.top <- sort(tpm.cv$c.v,decreasing = T)[1:floor(length(tpm.cv$c.v)*0.2)]
+
 ######################
 setwd("C:\\Users\\Ning\\Desktop\\melanoma_data/")
 rawdat <- read.table('mRNA.fpkm.sorted.txt',header = T,row.names = 1,check.names = F,sep = ',')
