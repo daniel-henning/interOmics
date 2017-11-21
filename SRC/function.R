@@ -60,8 +60,6 @@ tpm.top <- sort(tpm.cv$c.v,decreasing = T)[1:floor(length(tpm.cv$c.v)*0.2)]
 
 
 
-
-
 #gene_filter
 gene.ft <- function(data){
   f1 <- kOverA(5, 1)
@@ -69,6 +67,7 @@ gene.ft <- function(data){
   wh1 <- genefilter(exprs(sample.ExpressionSet), ffun)
   sum(wh1)
 }
+
 ######################
 setwd("C:\\Users\\Ning\\Desktop\\melanoma_data/")
 rawdat <- read.table('mRNA.fpkm.sorted.txt',header = T,row.names = 1,check.names = F,sep = ',')
