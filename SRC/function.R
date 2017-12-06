@@ -13,6 +13,13 @@ zero.cent <- function(data_input){
   }
   return(data.new)
 }
+
+
+###################################################
+###
+###################################################
+normalize <- function(x) {return ((x - min(x)) / (max(x) - min(x))) }
+
 ###################################################
 ### Define a function to transfer fpkm to tpm
 ###################################################
@@ -144,15 +151,36 @@ plot(pam.result)
 ###################################################
 library(cluster)#做聚类的包  
 library(fpc)#有dbscan  
-#city <- read.csv("中国城市坐标.csv")  
-x <- city[,c(3,2)]#行，列  
-#ds <- dbscan(x, 2)#2是半径，最小点数默认为5  
-ds <- dbscan(tpm.trimmed, 2,6)
-#ds <- dbscan(x,1,3)  
-ds#可以看border，seed数  
-str(ds)#可以看列数  
-par(bg="grey")  
-plot(ds, tpm.trimmed)
+library("dbscan")
+data("iris")
+x <- as.matrix(iris[, 1:4])
+#Run DBSCAN
+db <- dbscan(x, eps = .4, minPts = 10)
+db
+#Visualize results (noise is shown in black)
+pairs(x, col = db$cluster + 1L)
+#Calculate LOF (local outlier factor) and visualize (larger bubbles in the visualization have a larger LOF)
+lof <- lof(x, k = 4)
+pairs(x, cex = lof)
+#Run OPTICS
+opt <- optics(x, eps = 1, minPts = 10)
+opt
+#Extract DBSCAN-like clustering from OPTICS and create a reachability plot (extracted DBSCAN clusters at eps_cl=.4 are colored)
+opt <- extractDBSCAN(opt, eps_cl = .4)
+plot(opt)
+#Extract a hierarchical clustering using the Xi method (captures clusters of varying density)
+opt <- extractXi(opt, xi = .05)
+opt
+plot(opt)
+#Run HDBSCAN (captures stable clusters)
+hdb <- hdbscan(x, minPts = 4)
+hdb
+#Visualize the results as a simplified tree
+plot(hdb, show_flat = T)
+#See how well each point corresponds to the clusters found by the model used
+colors <- mapply(function(col, i) adjustcolor(col, alpha.f = hdb$membership_prob[i]), 
+                 palette()[hdb$cluster+1], seq_along(hdb$cluster))
+plot(x, col=colors, pch=20)
 
 
 ###################################################
@@ -188,69 +216,46 @@ rect.hclust(hh,k=5)
 ###################################################
 ### 2nd: t-SNE
 ###################################################
-# load the tsne package
-library(tsne)
+mrna.t <- as.data.frame(t(mrna.f))
 
-# initialize counter to 0
-x <- 0
-epc <- function(x) {
-  x <<- x + 1
-  filename <- paste(".//plot//", x, "jpg", sep=".")
-  cat("> Plotting TSNE to ", filename, " ")
-  
-  # plot to d:\\plot.x.jpg file of 2400x1800 dimension
-  jpeg(filename, width=2400, height=1800)
-  
-  plot(x, t='n', main="T-SNE")
-  text(x, labels=rownames(tpm.trimmed))
-  dev.off()
-}
-# run tsne (maximum iterations:500, callback every 100 epochs, target dimension k=5)
-tsne_data <- tsne(tpm.trimmed, k=4, epoch_callback=epc, max_iter=500, epoch=100)
-##################################
+##########################################
 # load the Rtsne package
 library(Rtsne)
 # run Rtsne with default parameters
-rtsne_out <- Rtsne(as.matrix(t(mRNA.trimmed)))
+rtsne_out <- Rtsne(as.data.frame(t(mirna.f)), dims = 3, perplexity=30, verbose=TRUE, max_iter = 500,epoch=100)
+
 # plot the output of Rtsne into d:\\barneshutplot.jpg file of 2400x1800 dimension
-jpeg("barneshutplot.jpg", width=2400, height=1800)
+jpeg("barneshutplot.jpg", width=1000, height=1000)
 plot(rtsne_out$Y, t='n', main="BarnesHutSNE")
-text(rtsne_out$Y, labels=rownames(t(mRNA.trimmed)))
-##################################
+text(rtsne_out$Y, labels=rownames(t(mirna.f)))
+dev.off()
+#############################################
+
+#############################################
+wss <- (nrow(rtsne_out$Y)-1)*sum(apply(rtsne_out$Y,2,var))
+for (i in 2:15)
+  wss[i] <- sum(kmeans(rtsne_out$Y,centers=i)$withinss)
+plot(1:15, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of squares")
+
+#############################################
 # mydata is the matrix loaded into R previously. Run the following command if it isn't yet loaded into R. 
-mydata <- read.table("d:\\samplewordembedding.csv", header=TRUE, sep=",")
-# K-Means Clustering with 20 clusters
-fit <- kmeans(mydata, 20)
 # Cluster Plot against 1st 2 principal components
 library(cluster)
-clusplot(mydata, fit$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+# K-Means Clustering with 8 clusters
+fit <- kmeans(rtsne_out$Y, 4)
+#
+clusplot(rtsne_out$Y, fit$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+## plot the output of Rtsne
+colors = rainbow(length(unique(fit$cluster)))
+names(colors) = unique(fit$cluster)
+plot(rtsne_out$Y, t='n', main="BarnesHutSNE")
+text(rtsne_out$Y, labels=fit$cluster,col = colors[fit$cluster])
+
+############################################
+group_m <- as.data.frame(colnames(mrna.f))
+group_m$mrna_clust <- fit$cluster
+#
+group_mi <- as.data.frame(colnames(mirna.f))
+group_mi$mirna_clust <- fit$cluster
 
 
-
-
-#############################
-dat <- loadDataSet("3D S Curve")
-
-## use the S4 Class directly:
-fastica <- FastICA()
-emb <- fastica@fun(tpm.trimmed, pars = list(ndim = 2))
-
-## simpler, use embed():
-emb2 <- embed(dat, "FastICA", ndim = 2)
-
-
-plot(emb@data@data)
-
-###############################
-# dat <- loadDataSet("3D S Curve")
-# 
-# ## Use the S4 Class directly:
-mds <- MDS()
-emb <- mds@fun(tpm.trimmed, mds@stdpars)
-# 
-# ## use embed():
-emb2 <- embed(scale(tpm.trimmed), "MDS", d = function(x) exp(stats::dist(x)))
-# 
-# 
-plot(emb, type = "2vars")
-plot(emb2, type = "2vars")
