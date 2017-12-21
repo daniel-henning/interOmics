@@ -36,17 +36,17 @@ fpkm2tpm <- function(rawdat){
 ###################################################
 ### Define a fuction to trimming expression data with number of fpkm > 1().
 ###################################################
-trimming <- function(dat,sub_group=20){
+trimming <- function(dat,cutoff=1,sub_group=4){
   if(nrow(dat)>ncol(dat)){
     for(i in 1:nrow(dat)){
-      if(length(dat[i,][which(dat[i,]>1)]) < sub_group){
+      if(length(dat[i,][which(as.numeric(dat[i,])>cutoff)]) < sub_group){
         dat[i,1] <- NA
       }
     }
   }else{
     dat <- t(dat)
     for(i in 1:nrow(dat)){
-      if(length(dat[i,][which(dat[i,]>1)]) < sub_group){
+      if(length(dat[i,][which(as.numeric(dat[i,])>cutoff)]) < sub_group){
         dat[i,1] <- NA
       }
     }
@@ -70,15 +70,16 @@ c.v <- function(data){
   }
   return(list(c.v=c.v,sd=sd,mean=mean))
 }
-
-######################loading data
-rawdat <- read.table('data//mRNA_htseq_FPKM.txt',header = T,row.names = 1,check.names = F,sep = '\t')
-
-#mRNA.tpm <- fpkm2tpm(rawdat)
-#mRNA.tpm.trimmed <- trimming(mRNA.tpm,20,1)
-mRNA.trimmed <- trimming(rawdat)
-mRNA.cv <- c.v(mRNA.trimmed)
-write.csv(mRNA.cv,'c.v.csv')
+################################################################################
+#####loading data matrix
+tcga.mrna <- read.table('./data/TCGA_SKCM/TCGA_SKCM_mrna_fpkm.txt',header = T,row.names = 1,check.names = F)
+#mrna.t <- as.data.frame(t(mrna))
+#mrna.t.sort <- mrna.t[order(mrna.t$V1),]
+#write.table(t(mrna.t.sort),'TCGA_SKCM_mrna_fpkm.txt',row.names = F,quote = F,sep = '\t')
+tcga.mrna.nromal <- subset(tcga.mrna,select = c(TCGA_GN_A4U8_11))
+tcga.mrna.tumor <- subset(tcga.mrna,select = -c(TCGA_GN_A4U8_11))
+tcga.mrna.tumor.t <- as.data.frame(t(trimming(tcga.mrna.tumor,cutoff = 1,sub_group = 20)))
+tcga.mrna.tumor.t.scaled <- scale(tcga.mrna.tumor.t)
 
 
 ##############Plotting PCA (Principal Component Analysis)
@@ -198,6 +199,33 @@ plot(hh,labels=w[,1],cex=0.6)
 rect.hclust(hh,k=5)
 
 
+############################################
+###MCLUST
+###########################################
+#install.packages("mclust")
+library(mclust)
+#You can then perform model-based clustering on the iris dataset using Mclust:
+mb = Mclust(iris[,-5])
+#or specify number of clusters
+mb3 = Mclust(iris[,-5], 3)
+# optimal selected model
+mb$modelName
+# optimal number of cluster
+mb$G
+# probality for an observation to be in a given cluster
+head(mb$z)
+# get probabilities, means, variances
+summary(mb, parameters = TRUE)
+#Compare amount of the data within each cluster
+table(iris$Species, mb$classification)
+# vs
+table(iris$Species, mb3$classification)
+#After the data is fit into the model, we plot the model based on clustering results.
+plot(mb, what=c("classification"))
+
+
+
+
 
 
 #<<===============================================================================
@@ -222,7 +250,7 @@ mrna.t <- as.data.frame(t(mrna.f))
 # load the Rtsne package
 library(Rtsne)
 # run Rtsne with default parameters
-rtsne_out <- Rtsne(as.data.frame(t(mirna.f)), dims = 3, perplexity=30, verbose=TRUE, max_iter = 500,epoch=100)
+rtsne_out <- Rtsne(as.data.frame(t(mrna.f)), dims = 3, perplexity=30)
 
 # plot the output of Rtsne into d:\\barneshutplot.jpg file of 2400x1800 dimension
 jpeg("barneshutplot.jpg", width=1000, height=1000)
@@ -242,13 +270,13 @@ plot(1:15, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of s
 # Cluster Plot against 1st 2 principal components
 library(cluster)
 # K-Means Clustering with 8 clusters
-fit <- kmeans(rtsne_out$Y, 4)
+fit <- kmeans(rtsne_out$Y, 2)
 #
 clusplot(rtsne_out$Y, fit$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
 ## plot the output of Rtsne
 colors = rainbow(length(unique(fit$cluster)))
 names(colors) = unique(fit$cluster)
-plot(rtsne_out$Y, t='n', main="BarnesHutSNE")
+plot(rtsne_out$Y, t='n', main="tSNE-kmeans")
 text(rtsne_out$Y, labels=fit$cluster,col = colors[fit$cluster])
 
 ############################################
@@ -257,5 +285,66 @@ group_m$mrna_clust <- fit$cluster
 #
 group_mi <- as.data.frame(colnames(mirna.f))
 group_mi$mirna_clust <- fit$cluster
+
+
+#
+
+library(pcaMethods)
+library(pcaReduce)
+library(SC3)
+library(scater)
+library(SingleCellExperiment)
+library(pheatmap)
+set.seed(1234567)
+
+iris <- plotTSNE(iris[,-4], rand_seed = 1, return_SCE = TRUE)
+
+
+
+wss <- (nrow(rtsne_out$Y)-1)*sum(apply(rtsne_out$Y,2,var))
+for(i in 2:15){wss[i] <- sum(kmeans(rtsne_out$Y,centers=i)$withinss)}
+###这里的wss(within-cluster sum of squares)是组内平方和
+plot(1:15, wss, type="b", xlab="Number of Clusters",ylab="Within groups sum of squares")
+
+mirna.clust <-  kmeans(rtsne_out$Y, centers = 2)$clust
+
+plot(rtsne_out$Y, t='n', main="tsne")
+text(rtsne_out$Y, mirna.clust, col=colors[mirna.clust])
+
+
+library(fpc)
+
+min.max.norm <- function(x){
+  (x-min(x))/(max(x)-min(x))
+}
+raw.data <- iris[,1:4]
+norm.data <- data.frame(sl = min.max.norm(raw.data[,1]),
+                        sw = min.max.norm(raw.data[,2]),
+                        pl = min.max.norm(raw.data[,3]),
+                        pw = min.max.norm(raw.data[,4]))
+
+
+K <- 2:10
+round <- 30 # 每次迭代30次，避免局部最优
+rst <- sapply(K, function(i){
+  print(paste("K=",i))
+  mean(sapply(1:round,function(r){
+    print(paste("Round",r))
+    result <- kmeans(rtsne_out$Y, i)
+    stats <- cluster.stats(dist(rtsne_out$Y), result$cluster)
+    stats$avg.silwidth
+  }))
+})
+
+plot(K,rst,type='l',main='轮廓系数与K的关系', ylab='轮廓系数')
+
+
+old.par <- par(mfrow = c(1,2))
+k = 2 # 根据上面的评估 k=2最优
+clu <- kmeans(mirna.f,k)
+mds = cmdscale(dist(mirna.f,method="euclidean"))
+plot(mds, col=clu$cluster, main='kmeans聚类 k=2', pch = 19)
+plot(mds, col=iris$Species, main='原始聚类', pch = 19)
+par(old.par)
 
 
