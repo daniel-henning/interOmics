@@ -1,180 +1,200 @@
 ## try http:// if https:// URLs are not supported
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("DESeq2")
-#setwd()
+source("https://bioconductor.org/biocLite.R")
+biocLite("DESeq2")
 ## ----loadDESeq2, echo=FALSE----------------------------------------------
 library(DESeq2)
 library(ggplot2)
 library(dplyr)
+#
+library("BioParallel")
+register(MulticoreParam(4)) ##申请
+#rawdata<- read.csv("zebrafish_gene_count_matrix.csv",header=TRUE,row.names=1,check.names = FALSE)
+rawdata<- read.csv("./data/TCGA_SKCM/SKCM_mRNA_htseq_count.txt",header=TRUE,sep = '\t',row.names = 1,check.names = FALSE)
+rawdata <- trimming(rawdata)
 
-htseq.count<- read.table("GSE94655_htseq_count_table.txt",header=TRUE,row.names=1,check.names = FALSE)
+clust <- read.table('./data/clust_diff/mrna_tsne_ahc_clust.txt',header = T,sep = '\t')
+##
+exprSet <- as.matrix(rawdata)
+##
+group_list <- factor(clust$sub)
+#patient.id <- factor(c(clinical$colnames.mrna.f.))
+colData <- data.frame(row.names = colnames(exprSet), group_list = group_list)
+#
+dds <- DESeqDataSetFromMatrix(countData = exprSet,
+                              colData = colData,
+                              design = ~ group_list)
+dds2 <- DESeq(dds)  ##第二步，直接用DESeq函数即可
 
-exprSet <- as.matrix(htseq.count)
-
-group <- factor(c('Kc','Fb','Mc','Mc','Kc','skin','Mc','skin','Mc','Fb','Kc','Kc'))
-colData <- data.frame(row.names=colnames(exprSet), condition=group)
-#df=data.frame(Treatment = group)
-dds <- DESeqDataSetFromMatrix(countData = exprSet,colData = colData,design = ~ condition)
-#pre-filter low count genes before running the DESeq2
-dds <- dds[rowSums(counts(dds)) > 4,]
-#to define which comparison to make using the contrast argument
-dds$condition <- relevel(dds$condition, ref="skin")
-nrow(dds)
-
-ds2 <- DESeq(dds) resultsNames(dds2)
-#es <-  results(dds2, contrast=c("Tcondition","Mc,"cskin))
-resOrdered <- res[order(res$pvalue),]
-resOrdered =  as.data.frame(resOrdered)
-write.csv(resOrdered,'Mc-skin.csv')
-
-
-############################
-prSet_new=assay(rld)
-par(cex = 0.7)
-n.sample=ncol(exprSet)
-if(n.sample>40) par(cex = 0.5)
-cols <- rainbow(n.sample*1.2)
-par(mfrow=c(2,2))
-boxplot(exprSet, col = cols,main="expression value",las=2)
-boxplot(exprSet_new, col = cols,main="expression value",las=2)
-hist(exprSet)
-hist(exprSet_new)
-## ----parallel, eval=FALSE------------------------------------------------
-library("BiocParallel")
-register(SnowParam(6))
-## ----resOrder------------------------------------------------------------
+resultsNames(dds)
+#
+res <-  results(dds, contrast=c("groupList","1","2"))
+## 提取你想要的差异分析结果，我们这里是treated组对untreated组进行比较
 resOrdered <- res[order(res$padj),]
-## ----sumRes--------------------------------------------------------------
-summary(res)
-## ----sumRes01------------------------------------------------------------
-sum(res$padj < 0.1,na.rm=TRUE)
-## ----resAlpha05----------------------------------------------------------
-res05 <- results(dds2, alpha=0.05)
-summary(res05)
-sum(res05$padj < 0.05, na.rm=TRUE)
-## ----IHW-----------------------------------------------------------------
-library("IW")resIHW <- results(dds2, filterFun=ihw)
-summary(resIHW)
-sum(resIHW$padj < 0.1, na.rm=TRUE)
-metadata(resIHW)$ihwResult
-## ----MA, fig.width=4.5, fig.height=4.5-----------------------------------
-plotMA(res, main="DESeq2", ylim=c(-2,2))
-## ----resMLE--------------------------------------------------------------
-resMLE <- results(dds2, addMLE=TRUE)
-head(resMLE, 4)
-## ----MANoPrior, fig.width=4.5, fig.height=4.5----------------------------
-plotMA(resMLE, MLE=TRUE, main="unshrunken LFC", ylim=c(-2,2))
+resOrdered=as.data.frame(resOrdered)
 
-## ----plotCounts, dev="pdf", fig.width=4.5, fig.height=5------------------
-plotCounts(dds2, gene=which.min(res$padj), intgroup="grgroup_list")
+write.table(resOrdered,'mrna_tsne-aghc_cluster1-cluster2_DE_genes.txt',quote = F,sep = '\t')
 
-## ----plotCountsAdv, dev="pdf", fig.width=3.5, fig.height=3.5-------------
-d <- plotCounts(dds2, gene=which.min(res$padj), intgroup="group", 
-                returnData=TRUE)
-library("ggplot2")
-ggplot(dds, aes(x=condition, y=count)) + 
-  geom_point(position=position_jitter(w=0.1,h=0)) + 
-  scale_y_log10(breaks=c(25,100,400))
+#
+res <-  results(dds, contrast=c("groupList","1","3"))
+## 提取你想要的差异分析结果，我们这里是treated组对untreated组进行比较
+resOrdered <- res[order(res$padj),]
+resOrdered=as.data.frame(resOrdered)
 
-## ----metadata------------------------------------------------------------
-mcols(res)$description
+write.table(resOrdered,'./cluster1-cluster3_DE_genes.txt',quote = F,sep = '\t')
+#
+res <-  results(dds, contrast=c("groupList","1","4"))
+## 提取你想要的差异分析结果，我们这里是treated组对untreated组进行比较
+resOrdered <- res[order(res$padj),]
+resOrdered=as.data.frame(resOrdered)
 
-## ----export, eval=FALSE--------------------------------------------------
-## write.csv(as.data.frame(resOrdered),
-##           file="condition_treated_results.csv")
-## ----subset--------------------------------------------------------------
-resSig <- subset(resOrdered, padj < 0.1)
+write.table(resOrdered,'./cluster1-cluster4_DE_genes.txt',quote = F,sep = '\t')
+#
+res <-  results(dds, contrast=c("groupList","2","3"))
+## 提取你想要的差异分析结果，我们这里是treated组对untreated组进行比较
+resOrdered <- res[order(res$padj),]
+resOrdered=as.data.frame(resOrdered)
 
-resSig
+write.table(resOrdered,'./cluster2-cluster3_DE_genes.txt',quote = F,sep = '\t')
 
-## ----multifactor---------------------------------------------------------
-colData(dds)
+#
+res <-  results(dds, contrast=c("groupList","2","4"))
+## 提取你想要的差异分析结果，我们这里是treated组对untreated组进行比较
+resOrdered <- res[order(res$padj),]
+resOrdered=as.data.frame(resOrdered)
 
-## ----copyMultifactor-----------------------------------------------------
-ddsMF <- dds
+write.table(resOrdered,'./cluster2-cluster4_DE_genes.txt',quote = F,sep = '\t')
 
-## ----replaceDesign-------------------------------------------------------
-design(ddsMF) <- formula(~ type + group)
-ddsMF <- DESeq(ddsMF)
+#
+res <-  results(dds, contrast=c("groupList","3","4"))
+## 提取你想要的差异分析结果，我们这里是treated组对untreated组进行比较
+resOrdered <- res[order(res$padj),]
+resOrdered=as.data.frame(resOrdered)
+write.table(resOrdered,'./cluster3-cluster4_DE_genes.txt',quote = F,sep = '\t')
 
-## ----multiResults--------------------------------------------------------
-resMF <- results(ddsMF)
-head(resMF)
+##############################################################################
+##############################################################################
+DE1 <- read.table('cluster1-cluster2_DE_genes.txt',header = T,sep = '\t')
+DE1<- DE1[which(DE1$log2FoldChange > 1 | DE1$log2FoldChange < -1 & DE1$padj < 0.005),]
+genes1=DE1$GeneSymbol
+eg1 = bitr(genes1, fromType="SYMBOL", toType=c("ENTREZID"), OrgDb="org.Hs.eg.db")
+gene1 <- eg1[,2]
+#DEplot(gene1,dir = 'cluster1-cluster2')
 
-## ----multiTypeResults----------------------------------------------------
-resMFType <- results(ddsMF,contrast=c("group"))
-head(resMFType)
+####################
+DE2 <- read.table('cluster1-cluster3_DE_genes.txt',header = T,sep = '\t')
+DE2<- DE2[which(DE2$log2FoldChange > 1 | DE2$log2FoldChange < -1 & DE2$padj < 0.005),]
+genes2=DE2$GeneSymbol
+eg2 = bitr(genes2, fromType="SYMBOL", toType=c("ENTREZID"), OrgDb="org.Hs.eg.db")
+gene2 <- eg2[,2]
+#DEplot(gene2,dir = 'cluster1-cluster3')
 
-## ----rlogAndVST----------------------------------------------------------
-rld <- rlog(dds2, blind=FALSE)
+####################
+DE3 <- read.table('cluster1-cluster4_DE_genes.txt',header = T,sep = '\t')
+DE3<- DE3[which(DE3$log2FoldChange > 1 | DE3$log2FoldChange < -1 & DE3$padj < 0.005),]
+genes3=DE3$GeneSymbol
+eg3 = bitr(genes3, fromType="SYMBOL", toType=c("ENTREZID"), OrgDb="org.Hs.eg.db")
+gene3 <- eg3[,2]
+#DEplot(gene3,dir = 'cluster1-cluster4')
+
+####################
+DE4 <- read.table('cluster2-cluster3_DE_genes.txt',header = T,sep = '\t')
+DE4<- DE4[which(DE4$log2FoldChange > 1 | DE4$log2FoldChange < -1 & DE4$padj < 0.005),]
+genes4=DE$GeneSymbol
+eg4 = bitr(genes4, fromType="SYMBOL", toType=c("ENTREZID"), OrgDb="org.Hs.eg.db")
+gene4 <- eg4[,2]
+#DEplot(gene4,dir = 'cluster2-cluster3')
+
+################################
+DE5 <- read.table('cluster2-cluster4_DE_genes.txt',header = T,sep = '\t')
+DE5<- DE5[which(DE5$log2FoldChange > 2 | DE5$log2FoldChange < -2 & DE5$padj < 0.005),]
+genes5=DE5$GeneSymbol
+####convert gene symbol to entrezID####
+eg5 = bitr(genes5, fromType="SYMBOL", toType=c("ENTREZID"), OrgDb="org.Hs.eg.db")
+gene5 <- eg5[,2]
+#DEplot(DE5,dir = 'cluster2-cluster4')
+
+################################
+DE6 <- read.table('cluster3-cluster4_DE_genes.txt',header = T,sep = '\t')
+DE6<- DE6[which(DE6$log2FoldChange > 1 | DE6$log2FoldChange < -1 & DE6$padj < 0.005),]
+genes6=DE6$GeneSymbol
+####convert gene symbol to entrezID####
+eg6 = bitr(genes6, fromType="SYMBOL", toType=c("ENTREZID"), OrgDb="org.Hs.eg.db")
+gene6 <- eg6[,2]
+#DEplot(DE6,dir = 'cluster3-cluster4')
 
 
-vsd <- varianceStabilizingTransformation(dds2, blind=FALSE)
-vsd.fast <- vst(dds2, blind=FALSE)
-head(assay(rld), 3)
+gene <- gene5
+dir = 'cluster2-cluster4'
 
-## ----vsd1, echo=FALSE, fig.width=4.5, fig.height=4.5, fig.show="asis", fig.small=TRUE, fig.pos="!bt", fig.cap="VST and log2. Graphs of the variance stabilizing transformation for sample 1, in blue, and of the transformation $f(n) = \\log_2(n/s_1)$, in black. $n$ are the counts and $s_1$ is the size factor for the first sample.\\label{figure/vsd1-1}"----
-px     <- counts(dds2)[,1] / sizeFactors(dds2)[1]
-ord    <- order(px)
-ord    <- ord[px[ord] < 150]
-ord    <- ord[seq(1, length(ord), length=50)]
-last   <- ord[length(ord)]
-vstcol <- c("blue", "black")
-matplot(px[ord],
-        cbind(assay(vsd)[, 1], log2(px))[ord, ],
-        type="l", lty=1, col=vstcol, xlab="n", ylab="f(n)")
-legend("bottomright",
-       legend = c(
-         expression("variance stabilizing transformation"),
-         expression(log[2](n/s[1]))),
-       fill=vstcol)
+geneList <- as.data.frame(t(subset(as.data.frame(t(genes)), select = as.factor(eg$SYMBOL))))
+geneList <- as.data.frame(subset(geneList,select = c(GeneSymbol,log2FoldChange)))
+#DEplot <- function(gene,dir=''){
+  ##########################################enrichGO###############################################
+  mfgo <- enrichGO(gene = gene, OrgDb="org.Hs.eg.db",ont = "MF", pvalueCutoff = 0.05, qvalueCutoff = 0.05, readable = TRUE)
+  bpgo <- enrichGO(gene = gene, OrgDb="org.Hs.eg.db",ont = "BP", pvalueCutoff = 0.05, qvalueCutoff = 0.05, readable = TRUE)
+  ccgo <- enrichGO(gene = gene, OrgDb="org.Hs.eg.db",ont = "CC", pvalueCutoff = 0.05, qvalueCutoff = 0.05, readable = TRUE)
+  mf <- as.data.frame(mfgo)
+  m <- c('MF')
+  mf_t <- rep(m,times=length(mfgo$ID))
+  mf$GO_term <- mf_t
+  bp <- as.data.frame(bpgo)
+  b <- c('BP')
+  bp_t <- rep(b,times=length(bpgo$ID))
+  bp$GO_term <- bp_t
+  cc <- as.data.frame(ccgo)
+  c <- c('CC')
+  cc_t <- rep(c, times=length(ccgo$ID))
+  cc$GO_term <- cc_t
+  GO <- rbind(mf,bp,cc)
+  #
+  write.csv(GO,paste(dir,'mrna_tsne-aghc_GO_up.csv',sep = '/'),row.names=F)
+############################
+  df <- data.frame(x = GO$Description,y = GO$pvalue,z = GO$GO_term)
+  df$y <- -log2(with(df, y))
+  df <- df[with(df,order(y,decreasing = TRUE)),]
+  df <- df[1:50,]
+  png(paste(dir,'GO_plot.png',sep = '/'),height = 1000,width = 1000)
+  ggplot(df,aes(x = interaction(x,z),y = y,fill = z))+ geom_bar(stat = "identity")+coord_flip()+xlab("GO Term Description (top100)")+ylab("P-value (-log2)")+labs(fill="GO_term")+coord_flip()+theme(axis.text.x=element_text(size=10,colour="black",face="bold"),axis.text.y=element_text(colour = "black",face="bold",vjust=0.8))
+  dev.off()
+##########################
+  png(paste(dir,'MF_GO_plot.png',sep = '/'),height = 800,width = 600)
+  dotplot(mfgo, showCategory=10,colorBy="pvalue")
+  dev.off()
+  png(paste(dir,'BP_GO_plot.png',sep = '/'),height = 800,width = 600)
+  dotplot(bpgo, showCategory=10,colorBy="pvalue")
+  dev.off()
+  png(paste(dir,'CC_GO_plot.png',sep = '/'),height = 800,width = 600)
+  dotplot(ccgo, showCategory=10,colorBy="pvalue")
+  dev.off()
+  
+  ####label
+  pdf(paste(dir,'mfGOenrichment.pdf',sep = '/'))
+  plotGOgraph(mfgo)
+  dev.off()
+  pdf(paste(dir,'bpGOenrichment.pdf',sep = '/'))
+  plotGOgraph(bpgo)
+  dev.off()
+  pdf(paste(dir,'ccGOenrichment.pdf',sep = '/'))
+  plotGOgraph(ccgo)
+  dev.off()
+  #########################################KEGG analysis############################################
+  ekk <- enrichKEGG(gene,organism="hsa",keyType='kegg', pvalueCutoff = 0.05,pAdjustMethod = "BH", minGSSize = 10, maxGSSize = 500,qvalueCutoff = 0.05)
+  write.csv(as.data.frame(ekk),paste(dir,"KEGG-enrich.csv",sep = '/'),row.names =F)
+#}
 
-## ----meansd, fig.width=4, fig.height=3, fig.show="asis", fig.wide=TRUE, fig.pos="tb", out.width=".32\\linewidth", fig.cap="Per-gene standard deviation (taken across samples), against the rank of the mean. {\\bfhelvet(a)} for the shifted logarithm $\\log_2(n+1)$, the regularized log transformation {\\bfhelvet(b)} and the variance stabilizing transformation {\\bfhelvet(c)}.\\label{fig:meansd}", fig.subcap=""----
-library("vsn")
-notAllZero <- (rowSums(counts(dds2))>0)
-meanSdPlot(log2(counts(dds2,normalized=TRUE)[notAllZero,] + 1))
-meanSdPlot(assay(rld[notAllZero,]))
-meanSdPlot(assay(vsd[notAllZero,]))
-
-## ----heatmap, dev="pdf", fig.width=5, fig.height=7-----------------------
-library("pheatmap")
-select <- order(rowMeans(counts(dds2,normalized=TRUE)),
-                decreasing=TRUE)[1:2000]
-
-nt <- normTransform(dds2) # defaults to log2(x+1)
-log2.norm.counts <- assay(nt)[select,]
-df <- as.data.frame(colData(dds2)[,c("group_list")])
-pheatmap(log2.norm.counts, cluster_rows=FALSE, show_rownames=FALSE,
-         cluster_cols=FALSE)
-
-pheatmap(assay(rld)[select,], cluster_rows=FALSE, show_rownames=FALSE,
-         cluster_cols=FALSE)
-
-pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE,
-         cluster_cols=FALSE)
-
-## ----Sample distances---------------------------------------------------------
-sampleDists <- dist(t(assay(rld)))
-
-## ----figHeatmapSamples, dev="pdf", fig.width=7, fig.height=7, fig.show="asis", fig.small=TRUE, fig.pos="tb", fig.cap="Sample-to-sample distances.  Heatmap showing the Euclidean distances between the samples as calculated from the regularized log transformation.\\label{figure/figHeatmapSamples-1}"----
-library("RColorBrewer")
-sampleDistMatrix <- as.matrix(sampleDists)
-rownames(sampleDistMatrix) <- paste(rld$group_list)
-colnames(sampleDistMatrix) <- NULL
-colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
-pheatmap(sampleDistMatrix,
-         clustering_distance_rows=sampleDists,
-         clustering_distance_cols=sampleDists,
-         col=colors)
-
-## ----figPCA, dev="pdf", fig.width=5, fig.height=3------------------------
-plotPCA(rld, intgroup=c("group_list"))
-
-## ----figPCA2, dev="pdf", fig.width=5, fig.height=3-----------------------
-data <- plotPCA(rld, intgroup=c("group_list"), returnData=TRUE)
-percentVar <- round(100 * attr(data, "percentVar"))
-ggplot(data, aes(PC1, PC2, color=group_list)) +
-  geom_point(size=3) +
-  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
-  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
-  coord_fixed()
+  immuno.gene <- read.table('clipboard',header = F)
+  immuno.gene.mrna <- as.data.frame(subset(mrna.t,select = as.array(immuno.gene[,1])))
+  immuno.gene.mrna$label <- clust$ck3
+  immuno.gene.mrna <- immuno.gene.mrna[order(immuno.gene.mrna$label),]
+  immuno.gene.mrna <- subset(immuno.gene.mrna,select = -c(label))
+  clust <- read.table('./mrna_tsne-aghc_clust.txt',header = T)
+  sub <- sort(clust$ck3)
+  ann_col = data.frame(sub)
+  rownames(ann_col) = rownames(immuno.gene.mrna)
+  ann_col$sub=paste('C',ann_col$sub,sep='')
+  ann_col$sub=as.factor(ann_col$sub)
+  #mrna.de <- subset(mrna.de, select = -c(sub))
+  
+  pheatmap(log10(t(immuno.gene.mrna)+0.1),col=colorRampPalette(c('blue','white','red'))(50),fontsize=8,cluster_col=F,cluster_row=T,annotation = ann_col)
+  
+  

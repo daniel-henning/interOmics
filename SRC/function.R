@@ -14,6 +14,19 @@ zero.cent <- function(data_input){
   return(data.new)
 }
 
+###################################################
+#### caculating variance and sort
+##################################################
+var_sort <- function(dat){
+  var.res <- as.data.frame(matrix(NA,nrow = ncol(dat),ncol = 2,dimnames = list(colnames(dat),c('geneID','variance'))))
+  for (i in  1:ncol(dat)){
+    var.res[i,1] = colnames(dat)[i]
+    var.res[i,2] = var(dat[,i])
+  }
+  var.res.sort <- var.res[order(var.res$variance,decreasing = T),]
+  return(list(var.res.sort,var.res.sort.top))
+}
+
 
 ###################################################
 ###
@@ -72,14 +85,18 @@ c.v <- function(data){
 }
 ################################################################################
 #####loading data matrix
-tcga.mrna <- read.table('./data/TCGA_SKCM/TCGA_SKCM_mrna_fpkm.txt',header = T,row.names = 1,check.names = F)
-#mrna.t <- as.data.frame(t(mrna))
-#mrna.t.sort <- mrna.t[order(mrna.t$V1),]
-#write.table(t(mrna.t.sort),'TCGA_SKCM_mrna_fpkm.txt',row.names = F,quote = F,sep = '\t')
-tcga.mrna.nromal <- subset(tcga.mrna,select = c(TCGA_GN_A4U8_11))
-tcga.mrna.tumor <- subset(tcga.mrna,select = -c(TCGA_GN_A4U8_11))
-tcga.mrna.tumor.t <- as.data.frame(t(trimming(tcga.mrna.tumor,cutoff = 1,sub_group = 20)))
-tcga.mrna.tumor.t.scaled <- scale(tcga.mrna.tumor.t)
+load.data.tcga <- function(){
+  #loading mrna
+  tcga.mrna <- read.table('./data/TCGA_SKCM/TCGA_SKCM_mrna_fpkm.txt',header = T,row.names = 1,check.names = F)
+  tcga.mrna.nromal <- subset(tcga.mrna,select = c(TCGA_GN_A4U8_11))
+  tcga.mrna.tumor <- subset(tcga.mrna,select = -c(TCGA_GN_A4U8_11))
+  tcga.mrna.tumor.t <- as.data.frame(t(trimming(tcga.mrna.tumor,cutoff = 1,sub_group = 20)))
+  tcga.mrna.tumor.t.scaled <- scale(tcga.mrna.tumor.t)
+  #loading mirna
+  tcga.mirna <- read.table('./data/TCGA_SKCM/TCGA_miRNA_rpm.txt',header = T,row.names = 1,check.names = F)
+  
+}
+
 
 
 ##############Plotting PCA (Principal Component Analysis)
